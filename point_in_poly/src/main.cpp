@@ -35,6 +35,9 @@ int main(int argc, char* argv[]) {
         case Polygon::CheckResult::ON_THE_EDGE:
             std::cout << "On the edge" << std::endl;
             break;
+        case Polygon::CheckResult::ERROR:
+            std::cerr << "Something went wrong..." << std::endl;
+            return -1;
     }
 
     return 0;

@@ -6,6 +6,24 @@
 
 #include "exceptions.h"
 
+static inline double dot_product(const Point &p1, const Point &p2) {
+    return p1.x * p2.x + p1.y * p2.y;
+}
+static inline bool points_is_equal(const Point &p1, const Point &p2) {
+    Point diff = {p1.x - p2.x, p1.y - p2.y};
+    double diff_norm, p1_norm, p2_norm;
+    diff_norm = std::sqrt(dot_product(diff, diff));
+    p1_norm = std::sqrt(dot_product(p1, p1));
+    p2_norm = std::sqrt(dot_product(p2, p2));
+
+    return diff_norm < 100 * std::numeric_limits<double>::epsilon() * std::max(p1_norm, p2_norm);
+}
+static inline bool angles_is_equal(double theta_1, double theta_2) {
+    return (std::abs(theta_1 - theta_2) / M_PI) < 100 * std::numeric_limits<double>::epsilon();
+}
+
+Point Point::operator-(const Point &other) { return {this->x - other.x, this->y - other.y}; }
+
 Polygon::Polygon() : points(nullptr), number_of_points(0) {}
 Polygon::~Polygon() {
     if (points == nullptr) {
@@ -72,45 +90,59 @@ void Polygon::read_file(const std::string &filename) {
     }
 }
 
-bool Polygon::is_point_on_edge(const Point &p, size_t p1_index, size_t p2_index) const {
-    Point p1 = points[p1_index], p2 = points[p2_index];
-    double ratio_1 = (p.x - p1.x) / (p.y - p1.y);
-    double ratio_2 = (p1.x - p2.x) / (p1.y - p2.y);
-    if (std::abs(ratio_1 - ratio_2) > 1e-6) {
-        return false;
-    }
-
-    bool x_between = (std::min(p1.x, p2.x) <= p.x && std::max(p1.x, p2.x) >= p.x);
-    bool y_between = (std::min(p1.y, p2.y) <= p.y && std::max(p1.y, p2.y) >= p.y);
-
-    if (x_between && y_between) {
-        return true;
-    }
-    return false;
-}
-
 double Polygon::calculate_angle(const Point &p, size_t p1_index, size_t p2_index) const {
-    Point v1 = {points[p1_index].x - p.x, points[p1_index].y - p.y};
-    Point v2 = {points[p2_index].x - p.x, points[p2_index].y - p.y};
+    Point p1 = points[p1_index], p2 = points[p2_index];
+
+    if (points_is_equal(p1, p2)) {
+        throw ReadingError::BadData(p2_index);
+    }
+    if (points_is_equal(p, p1) || points_is_equal(p, p2)) {
+        return M_PI;
+    }
+
+    Point v1 = p1 - p;
+    Point v2 = p2 - p;
+
+    double ratio = dot_product(v1, v2) / dot_product(v2, v2);
+    Point proj = {ratio * v2.x, ratio * v2.y};
+    Point ort = v1 - proj;
+
+    double adjacent = std::sqrt(proj.x * proj.x + proj.y * proj.y);
+    double opposite = std::sqrt(ort.x * ort.x + ort.y * ort.y);
+    double angle = atan2(opposite, adjacent);
+
+    if (ratio < 0) {
+        angle = M_PI - angle;
+    }
+
     double cross_product = v1.x * v2.y - v1.y * v2.x;
-    double norm_product = (v1.x * v1.x + v1.y * v1.y) * (v2.x * v2.x + v2.y * v2.y);
-    return asin(cross_product / sqrt(norm_product));
+    if (cross_product > 0) {
+        angle *= -1;
+    }
+
+    return angle;
 }
 
 Polygon::CheckResult Polygon::where_point(const Point &p) const {
-    double full_angle = 0.;
+    double angle, full_angle = 0.;
     for (size_t i = 1; i < number_of_points; i++) {
-        if (is_point_on_edge(p, i - 1, i)) {
+        angle = calculate_angle(p, i - 1, i);
+        if (angles_is_equal(std::abs(angle), M_PI)) {
             return CheckResult::ON_THE_EDGE;
         }
-        full_angle += calculate_angle(p, i - 1, i);
+        full_angle += angle;
     }
-    if (is_point_on_edge(p, number_of_points - 1, 0)) {
+    angle = calculate_angle(p, number_of_points - 1, 0);
+    if (angles_is_equal(std::abs(angle), M_PI)) {
         return CheckResult::ON_THE_EDGE;
     }
-    full_angle += calculate_angle(p, number_of_points - 1, 0);
-    if (full_angle < 3) {
+    full_angle += angle;
+    if (angles_is_equal(std::abs(full_angle), 2 * M_PI)) {
+        return CheckResult::INSIDE;
+    } else if (angles_is_equal(std::abs(full_angle), 0)) {
         return CheckResult::OUTSIDE;
+    } else {
+        return CheckResult::ERROR;
     }
-    return CheckResult::INSIDE;
+    return CheckResult::ERROR;
 }

@@ -5,6 +5,7 @@
 struct Point {
     double x;
     double y;
+    Point operator-(const Point& other);
 };
 
 class Polygon {
@@ -17,9 +18,10 @@ class Polygon {
 
    public:
     enum class CheckResult {
-        OUTSIDE,
-        INSIDE,
-        ON_THE_EDGE,
+        ERROR = -1,
+        OUTSIDE = 0,
+        INSIDE = 1,
+        ON_THE_EDGE = 2,
     };
     Polygon();
     ~Polygon();

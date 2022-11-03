@@ -1,6 +1,9 @@
 #pragma once
 
 #include <limits>
+#include <vector>
+
+#include "lodepng.h"
 
 struct Point {
   double own_cost;
@@ -25,8 +28,13 @@ class Map {
 
   Type& operator()(int i, int j);
 
-  void read_file(const char* filename, int N, int M);
+  void from_image(const std::vector<unsigned char>& image, size_t N, size_t M);
   void print() const;
 
-  friend void find_path(Map& m, int j_start, int j_end);
+  friend void find_path(Map& M, int j_start, int j_end);
+  friend void draw_map(std::vector<unsigned char>& image, Map& M,
+                       const char* outfname);
+  friend void draw_path(std::vector<unsigned char>& image, Map& M,
+                        const char* outfname, int j_start, int j_end);
+  void print_map() const;
 };

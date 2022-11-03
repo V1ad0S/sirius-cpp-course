@@ -17,44 +17,39 @@ Map::~Map() {
   data = nullptr;
 }
 
-void Map::read_file(const char* filename, int N, int M) {
+void Map::from_image(const std::vector<unsigned char>& image, size_t N,
+                     size_t M) {
   if (data != nullptr) {
-    throw "already read";
+    throw std::runtime_error("already read");
   }
   if (N <= 0 || M <= 0) {
-    throw "wrong size";
+    throw std::runtime_error("wrong size");
   }
   data = new Type[N * M];
   n = N;
   m = M;
 
-  // TODO: read_file
-  std::cerr << "File not read" << std::endl;
-  for (int i = 0; i < n * m; i++) {
-    data[i].own_cost = i;
+  for (size_t i = 2, j = 0, k = 0; i < image.size(); i += 4, k++) {
+    if (k == M) {
+      k = 0;
+      j++;
+    }
+    data[j * m + k].own_cost = double(image[i]);
   }
 }
 
 Type& Map::operator()(int i, int j) {
   if (data == nullptr) {
-    throw "brooo. read data first";
+    throw std::runtime_error("brooo. read data first");
   }
   if (i < 0 || i > n - 1) {
-    throw "`i` index is out of range: 0..n";
+    throw std::runtime_error("`i` index is out of range: 0..n");
   }
   if (j < 0 || j > m - 1) {
-    throw "`j` index is out of range: 0..m";
+    std::cout << "j = \t" << j << std::endl;
+    throw std::runtime_error("`j` index is out of range: 0..m");
   }
   return data[i * m + j];
-}
-
-void Map::print() const {
-  for (int i = 0; i < n; i++) {
-    for (int j = 0; j < m; j++) {
-      std::cout << data[i * m + j].own_cost << "\t";
-    }
-    std::cout << "\n";
-  }
 }
 
 void find_path(Map& M, int j_start, int j_end) {
@@ -107,13 +102,46 @@ void find_path(Map& M, int j_start, int j_end) {
     M(I, J).visited = true;
     visited_number++;
   }
+}
 
+void draw_map(std::vector<unsigned char>& image, Map& M, const char* outfname) {
+  for (size_t i = 0; i < M.n * M.m; i++) {
+    image[i * 4 + 2] = (unsigned char)M.data[i].own_cost;
+  }
+  unsigned error = lodepng::encode(outfname, image, M.n, M.m);
+  if (error) {
+    std::cout << "encoder error " << error << ": ";
+    std::cout << lodepng_error_text(error) << std::endl;
+  }
+}
+
+void draw_path(std::vector<unsigned char>& image, Map& M, const char* outfname,
+               int j_start, int j_end) {
   int back_i = M.n - 1;
   int back_j = j_end;
   while (back_i != 0 || back_j != j_start) {
-    std::cout << '(' << back_i << ", " << back_j << ')' << std::endl;
+    int index = (back_i * M.m + back_j) * 4;
+    image[index] = (unsigned char)255;
+    image[++index] = (unsigned char)0;
+    image[++index] = (unsigned char)0;
+
     Point tmp = M(back_i, back_j);
     back_i = tmp.prev_i;
     back_j = tmp.prev_j;
+  }
+
+  unsigned error = lodepng::encode(outfname, image, M.n, M.m);
+  if (error) {
+    std::cerr << "encoder error " << error << ": ";
+    std::cerr << lodepng_error_text(error) << std::endl;
+  }
+}
+
+void Map::print_map() const {
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < m; j++) {
+      std::cout << data[i * m + j].own_cost << ' ';
+    }
+    std::cout << std::endl;
   }
 }

@@ -38,6 +38,16 @@ int main(int argc, char *argv[]) {
     }
     std::cout << std::endl;
   }
+  {
+    std::cout << std::endl;
+    DenseMatrix<int, int> C = D + D;
+    for (int i = 0; i < rows; i++) {
+      for (int j = 0; j < cols; j++) {
+        std::cout << C(i, j) << " ";
+      }
+      std::cout << std::endl;
+    }
+  }
 
   return 0;
 }

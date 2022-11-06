@@ -14,15 +14,24 @@ class DenseMatrix : public Matrix<DataType> {
   IndexType m_num_rows;
 
  public:
+  DenseMatrix(IndexType num_rows, IndexType num_cols);
   DenseMatrix(IndexType num_rows, IndexType num_cols, std::istream& is);
   ~DenseMatrix();
+
+  inline const DataType& operator()(IndexType i, IndexType j) const;
 
   void matvec(const DataType* x, DataType* y,
               bool is_transposed = false) const override;
 
   DenseMatrix operator+(const DenseMatrix& other) const;
-  inline const DataType& operator()(IndexType i, IndexType j) const;
 };
+
+template <class DataType, class IndexType>
+DenseMatrix<DataType, IndexType>::DenseMatrix(IndexType num_rows,
+                                              IndexType num_cols)
+    : m_num_cols(num_cols), m_num_rows(num_rows) {
+  data = new DataType[m_num_rows * m_num_cols];
+}
 
 template <class DataType, class IndexType>
 DenseMatrix<DataType, IndexType>::DenseMatrix(IndexType num_rows,
@@ -69,4 +78,14 @@ void DenseMatrix<DataType, IndexType>::matvec(const DataType* x, DataType* y,
       }
     }
   }
+}
+
+template <class DataType, class IndexType>
+DenseMatrix<DataType, IndexType> DenseMatrix<DataType, IndexType>::operator+(
+    const DenseMatrix<DataType, IndexType>& other) const {
+  DenseMatrix<DataType, IndexType> result(m_num_rows, m_num_cols);
+  for (IndexType i = 0; i < m_num_cols * m_num_rows; i++) {
+    result.data[i] = data[i] + other.data[i];
+  }
+  return result;
 }

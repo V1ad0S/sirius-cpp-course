@@ -3,6 +3,10 @@ cmake_minimum_required(VERSION 3.20)
 project(Matrices LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -13,3 +17,6 @@ set(CMAKE_CXX_FLAGS_DEBUG "-Og -g -DDEBUG")                   # debug only
 set(CMAKE_CXX_FLAGS_RELEASE "-Ofast -DNDEBUG -march=native")  # release only
 
 add_subdirectory(src)
+
+enable_testing()
+add_subdirectory(tests)

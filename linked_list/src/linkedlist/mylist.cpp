@@ -2,6 +2,16 @@
 
 #include <iostream>
 
+MyList::~MyList() {
+  Node *next = head;
+  Node *tmp;
+  while (next != nullptr) {
+    tmp = next->pnext;
+    delete next;
+    next = tmp;
+  }
+}
+
 void MyList::add_node(T value) {
   if (head == nullptr) {
     head = new Node(value);

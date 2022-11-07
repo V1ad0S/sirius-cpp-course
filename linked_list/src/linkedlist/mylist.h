@@ -17,6 +17,8 @@ class MyList {
   Node* head = nullptr;
 
  public:
+  ~MyList();
+
   void add_node(T value);
   void print_list() const;
   void delete_element(T value);

@@ -7,7 +7,7 @@
 #include "base.hpp"
 
 template <class DataType, class IndexType>
-class DenseMatrix : public Matrix<DataType> {
+class DenseMatrix : public Matrix<DataType, IndexType> {
  private:
   DataType* data;
   IndexType m_num_cols;
@@ -20,6 +20,8 @@ class DenseMatrix : public Matrix<DataType> {
 
   inline const DataType& operator()(IndexType i, IndexType j) const;
 
+  inline IndexType get_num_rows() const override { return m_num_rows; }
+  inline IndexType get_num_cols() const override { return m_num_cols; }
   void matvec(const DataType* x, DataType* y,
               bool is_transposed = false) const override;
 
@@ -72,7 +74,7 @@ void DenseMatrix<DataType, IndexType>::matvec(const DataType* x, DataType* y,
     y[i] = 0;
     for (IndexType j = 0; j < m_num_cols; j++) {
       if (is_transposed) {
-        y[j] += data[i * m_num_cols + j] * x[i];
+        y[i] += data[j * m_num_rows + i] * x[j];
       } else {
         y[i] += data[i * m_num_cols + j] * x[j];
       }

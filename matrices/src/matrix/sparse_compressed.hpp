@@ -8,7 +8,7 @@
 #include "base.hpp"
 
 template <class DataType, class IndexType, class OffsetType>
-class CompressedSparse : public Matrix<DataType> {
+class CompressedSparse : public Matrix<DataType, IndexType> {
   struct Element {
     IndexType index;
     DataType value;
@@ -23,11 +23,12 @@ class CompressedSparse : public Matrix<DataType> {
 
  public:
   CompressedSparse(IndexType offsets_num, std::istream& is);
-
-  virtual inline IndexType row_number() const = 0;
-  virtual inline IndexType col_number() const = 0;
+  inline IndexType get_num_rows() const = 0;
+  inline IndexType get_num_cols() const = 0;
 
  protected:
+  CompressedSparse() {}
+
   std::vector<OffsetType> m_offsets;
   std::vector<Element> m_elements;
   static std::vector<OffsetType> read_offsets(IndexType m, std::istream& is);
@@ -35,6 +36,7 @@ class CompressedSparse : public Matrix<DataType> {
   IndexType calc_max_index() const;
   void sort();
   void cs_matvec(const DataType* x, DataType* y, bool direct) const;
+  void cs_add(const CompressedSparse& other, CompressedSparse& result) const;
 };
 
 template <class DataType, class IndexType, class OffsetType>
@@ -42,13 +44,17 @@ class CSRMatrix : public CompressedSparse<DataType, IndexType, OffsetType> {
  private:
   IndexType m_num_cols;
 
+  CSRMatrix() = default;
+
  public:
   CSRMatrix(IndexType num_rows, IndexType num_cols, std::istream& is);
 
-  inline IndexType row_number() const override {
+  CSRMatrix operator+(const CSRMatrix& other) const;
+
+  inline IndexType get_num_rows() const override {
     return this->m_offsets.size() - 1;
   }
-  inline IndexType col_number() const override { return m_num_cols; }
+  inline IndexType get_num_cols() const override { return m_num_cols; }
   void matvec(const DataType* x, DataType* y,
               bool is_transposed = false) const override;
 };
@@ -58,11 +64,15 @@ class CSCMatrix : public CompressedSparse<DataType, IndexType, OffsetType> {
  private:
   IndexType m_num_rows;
 
+  CSCMatrix() = default;
+
  public:
   CSCMatrix(IndexType num_rows, IndexType num_cols, std::istream& is);
 
-  inline IndexType row_number() const override { return m_num_rows; }
-  inline IndexType col_number() const override {
+  CSCMatrix operator+(const CSCMatrix& other) const;
+
+  inline IndexType get_num_rows() const override { return m_num_rows; }
+  inline IndexType get_num_cols() const override {
     return this->m_offsets.size() - 1;
   }
   void matvec(const DataType* x, DataType* y,
@@ -186,7 +196,7 @@ void CompressedSparse<DataType, IndexType, OffsetType>::sort() {
 template <class DataType, class IndexType, class OffsetType>
 void CompressedSparse<DataType, IndexType, OffsetType>::cs_matvec(
     const DataType* x, DataType* y, bool direct) const {
-  for (IndexType i = 0; i < row_number(); i++) {
+  for (IndexType i = 0; i < get_num_rows(); i++) {
     auto start = m_elements.begin() + m_offsets[i];
     auto end = m_elements.begin() + m_offsets[i + 1];
     for (; start < end; ++start) {
@@ -198,6 +208,60 @@ void CompressedSparse<DataType, IndexType, OffsetType>::cs_matvec(
         y[j] += a * x[i];
       }
     }
+  }
+}
+
+template <class DataType, class IndexType, class OffsetType>
+void CompressedSparse<DataType, IndexType, OffsetType>::cs_add(
+    const CompressedSparse& other, CompressedSparse& result) const {
+  if (get_num_cols() != other.get_num_cols() ||
+      get_num_rows() != other.get_num_rows()) {
+    throw std::runtime_error("Can not sum matrices of different sizes");
+  }
+  result.m_offsets.resize(other.m_offsets.size(), 0);
+
+  for (size_t i = 0; i < m_offsets.size() - 1; i++) {
+    auto start_this = m_elements.begin() + m_offsets[i];
+    auto end_this = m_elements.begin() + m_offsets[i + 1];
+
+    auto start_other = other.m_elements.begin() + other.m_offsets[i];
+    auto end_other = other.m_elements.begin() + other.m_offsets[i + 1];
+
+    while (start_this < end_this && start_other < end_other) {
+      while (start_this < end_this && *start_this < *start_other) {
+        result.m_elements.push_back(*start_this);
+        result.m_offsets[i + 1]++;
+        ++start_this;
+      }
+      while (start_this < end_this && start_other < end_other &&
+             *start_this == *start_other) {
+        Element t = *start_this;
+        t.value += start_other->value;
+        result.m_elements.push_back(t);
+        result.m_offsets[i + 1]++;
+        ++start_this;
+        ++start_other;
+      }
+      if (start_this == end_this) break;
+      while (start_other < end_other && *start_other < *start_this) {
+        result.m_elements.push_back(*start_other);
+        result.m_offsets[i + 1]++;
+        ++start_other;
+      }
+    }
+
+    while (start_this < end_this) {
+      result.m_elements.push_back(*start_this);
+      result.m_offsets[i + 1]++;
+      ++start_this;
+    }
+    while (start_other < end_other) {
+      result.m_elements.push_back(*start_other);
+      result.m_offsets[i + 1]++;
+      ++start_other;
+    }
+
+    result.m_offsets[i + 1] += result.m_offsets[i];
   }
 }
 
@@ -214,6 +278,22 @@ CSCMatrix<DataType, IndexType, OffsetType>::CSCMatrix(IndexType num_rows,
 }
 
 template <class DataType, class IndexType, class OffsetType>
+void CSCMatrix<DataType, IndexType, OffsetType>::matvec(
+    const DataType* x, DataType* y, bool is_transposed) const {
+  this->cs_matvec(x, y, is_transposed);
+}
+
+template <class DataType, class IndexType, class OffsetType>
+CSCMatrix<DataType, IndexType, OffsetType>
+CSCMatrix<DataType, IndexType, OffsetType>::operator+(
+    const CSCMatrix& other) const {
+  CSCMatrix<DataType, IndexType, OffsetType> result;
+  result.m_num_rows = m_num_rows;
+  this->cs_add(other, result);
+  return result;
+}
+
+template <class DataType, class IndexType, class OffsetType>
 CSRMatrix<DataType, IndexType, OffsetType>::CSRMatrix(IndexType num_rows,
                                                       IndexType num_cols,
                                                       std::istream& is)
@@ -226,13 +306,17 @@ CSRMatrix<DataType, IndexType, OffsetType>::CSRMatrix(IndexType num_rows,
 }
 
 template <class DataType, class IndexType, class OffsetType>
-void CSCMatrix<DataType, IndexType, OffsetType>::matvec(
-    const DataType* x, DataType* y, bool is_transposed) const {
-  this->cs_matvec(x, y, is_transposed);
-}
-
-template <class DataType, class IndexType, class OffsetType>
 void CSRMatrix<DataType, IndexType, OffsetType>::matvec(
     const DataType* x, DataType* y, bool is_transposed) const {
   this->cs_matvec(x, y, !is_transposed);
+}
+
+template <class DataType, class IndexType, class OffsetType>
+CSRMatrix<DataType, IndexType, OffsetType>
+CSRMatrix<DataType, IndexType, OffsetType>::operator+(
+    const CSRMatrix& other) const {
+  CSRMatrix<DataType, IndexType, OffsetType> result;
+  result.m_num_cols = m_num_cols;
+  this->cs_add(other, result);
+  return result;
 }
